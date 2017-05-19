@@ -1,0 +1,10 @@
+[package]
+name = "rustc-hex"
+version = "1.0.0"
+authors = ["The Rust Project Developers", "debris <marek.kotewicz@gmail.com>"]
+license = "MIT/Apache-2.0"
+repository = "https://github.com/debris/rustc-hex"
+homepage = "https://github.com/debris/rustc-hex"
+keywords = ["rustc", "serialize", "hex"]
+
+[dependencies]
