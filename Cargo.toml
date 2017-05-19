@@ -6,5 +6,8 @@ license = "MIT/Apache-2.0"
 repository = "https://github.com/debris/rustc-hex"
 homepage = "https://github.com/debris/rustc-hex"
 keywords = ["rustc", "serialize", "hex"]
+description = """
+rustc-serialize compatible hex conversion traits
+"""
 
 [dependencies]
