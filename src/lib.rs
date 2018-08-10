@@ -113,18 +113,7 @@ pub enum FromHexError {
     InvalidHexLength,
 }
 
-#[cfg(feature = "std")]
-impl fmt::Debug for FromHexError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            InvalidHexCharacter(ch, idx) =>
-                write!(f, "Invalid character '{}' at position {}", ch, idx),
-            InvalidHexLength => write!(f, "Invalid input length"),
-        }
-    }
-}
-
-#[cfg(not(feature = "std"))]
+#[cfg(any(feature = "std", test))]
 impl fmt::Debug for FromHexError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
