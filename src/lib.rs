@@ -124,6 +124,17 @@ impl fmt::Debug for FromHexError {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl fmt::Debug for FromHexError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            InvalidHexCharacter(ch, idx) =>
+                write!(f, "Invalid character '{}' at position {}", ch, idx),
+            InvalidHexLength => write!(f, "Invalid input length"),
+        }
+    }
+}
+
 #[cfg(feature = "std")]
 impl ::std::error::Error for FromHexError {
     fn description(&self) -> &str {
