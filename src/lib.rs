@@ -113,7 +113,6 @@ pub enum FromHexError {
     InvalidHexLength,
 }
 
-#[cfg(feature = "std")]
 impl fmt::Debug for FromHexError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
