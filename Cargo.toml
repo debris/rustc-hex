@@ -1,6 +1,6 @@
 [package]
 name = "rustc-hex"
-version = "2.0.0"
+version = "2.0.1"
 authors = ["The Rust Project Developers", "debris <marek.kotewicz@gmail.com>", "Robert Habermeier"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/debris/rustc-hex"
