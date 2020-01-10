@@ -280,6 +280,10 @@ impl<'a> Iterator for FromHexIter<'a> {
 #[cfg(test)]
 mod tests {
     use super::{FromHex, ToHex};
+    #[cfg(not(feature = "std"))]
+    extern crate alloc;
+    #[cfg(not(feature = "std"))]
+    use alloc::{string::String, vec::Vec, format};
 
     #[test]
     pub fn test_to_hex() {
