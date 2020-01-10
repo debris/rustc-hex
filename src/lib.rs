@@ -12,34 +12,26 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "std")]
-extern crate core;
-
-#[cfg(feature = "std")]
-use std::fmt;
-
-#[cfg(not(feature = "std"))]
 use core::fmt;
-
 use core::iter::{self, FromIterator};
 
 pub use self::FromHexError::*;
+
 /// A trait for converting a value to hexadecimal encoding
 pub trait ToHex {
     /// Converts the value of `self` to a hex value, constructed from
-    /// an iterator of characaters.
+    /// an iterator of characters.
     fn to_hex<T: FromIterator<char>>(&self) -> T;
 }
 
 static CHARS: &'static [u8] = b"0123456789abcdef";
 
 impl ToHex for [u8] {
-    /// Turn a vector of `u8` bytes into a hexadecimal string.
+    /// Turn a slice of `u8` bytes into a hexadecimal string.
     ///
     /// # Example
     ///
     /// ```rust
-    /// extern crate rustc_hex;
     /// use rustc_hex::ToHex;
     ///
     /// fn main () {
@@ -48,46 +40,7 @@ impl ToHex for [u8] {
     /// }
     /// ```
     fn to_hex<T: FromIterator<char>>(&self) -> T {
-        struct SliceToHex<'a> {
-            live: Option<char>,
-            inner: ::core::slice::Iter<'a, u8>,
-        }
-
-        impl<'a> Iterator for SliceToHex<'a> {
-            type Item = char;
-
-            fn next(&mut self) -> Option<char> {
-                if let Some(live) = self.live.take() {
-                    return Some(live);
-                }
-
-                self.inner.next().map(|&byte| {
-                    let current = CHARS[(byte >> 4) as usize] as char;
-                    self.live = Some(CHARS[(byte & 0xf) as usize] as char);
-                    current
-                })
-            }
-
-            fn size_hint(&self) -> (usize, Option<usize>) {
-                let len = self.len();
-                (len, Some(len))
-            }
-        }
-
-        impl<'a> iter::ExactSizeIterator for SliceToHex<'a> {
-            fn len(&self) -> usize {
-                let mut len = self.inner.len() * 2;
-                if self.live.is_some() {
-                    len += 1;
-                }
-                len
-            }
-        }
-
-        SliceToHex {
-            live: None,
-            inner: self.iter()
-        }.collect()
+        ToHexIter::new(self.iter()).collect()
     }
 }
 
@@ -97,7 +50,51 @@ impl<'a, T: ?Sized + ToHex> ToHex for &'a T {
     }
 }
 
-/// A trait for converting hexadecimal encoded values
+/// An iterator converting byte slice to a hex string.
+pub struct ToHexIter<T> {
+    live: Option<char>,
+    inner: T,
+}
+
+impl<T> ToHexIter<T> {
+    pub fn new(inner: T) -> Self {
+        Self {
+            live: None,
+            inner,
+        }
+    }
+}
+
+impl<'a, T: Iterator<Item = &'a u8>> Iterator for ToHexIter<T> {
+    type Item = char;
+
+    fn next(&mut self) -> Option<char> {
+        if let Some(live) = self.live.take() {
+            return Some(live);
+        }
+
+        self.inner.next().map(|&byte| {
+            let current = CHARS[(byte >> 4) as usize] as char;
+            self.live = Some(CHARS[(byte & 0xf) as usize] as char);
+            current
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<'a, T: iter::ExactSizeIterator + Iterator<Item = &'a u8>> iter::ExactSizeIterator for ToHexIter<T> {
+    fn len(&self) -> usize {
+        let mut len = self.inner.len() * 2;
+        if self.live.is_some() {
+            len += 1;
+        }
+        len
+    }
+}
+
 pub trait FromHex {
     /// Converts the value of `self`, interpreted as hexadecimal encoded data,
     /// into an owned value constructed from an iterator of bytes.
@@ -196,9 +193,9 @@ impl FromHex for str {
                     buf <<= 4;
 
                     match byte {
-                        b'A'...b'F' => buf |= byte - b'A' + 10,
-                        b'a'...b'f' => buf |= byte - b'a' + 10,
-                        b'0'...b'9' => buf |= byte - b'0',
+                        b'A'..=b'F' => buf |= byte - b'A' + 10,
+                        b'a'..=b'f' => buf |= byte - b'a' + 10,
+                        b'0'..=b'9' => buf |= byte - b'0',
                         b' '|b'\r'|b'\n'|b'\t' => {
                             buf >>= 4;
                             continue
