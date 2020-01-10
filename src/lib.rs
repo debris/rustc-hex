@@ -11,6 +11,7 @@
 //! Hex binary-to-text encoding
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![warn(missing_docs)]
 
 use core::fmt;
 use core::iter::{self, FromIterator};
@@ -50,13 +51,24 @@ impl<'a, T: ?Sized + ToHex> ToHex for &'a T {
     }
 }
 
-/// An iterator converting byte slice to a hex string.
+/// An iterator converting byte slice to a set of hex characters.
 pub struct ToHexIter<T> {
     live: Option<char>,
     inner: T,
 }
 
 impl<T> ToHexIter<T> {
+    /// Create new hex-converting iterator.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// fn main () {
+    ///     let bytes = vec![1, 2, 3, 4];
+    ///     let iter = rustc_hex::ToHexIter::new(bytes.iter());
+    ///     println!("{}", iter.collect::<String>());
+    /// }
+    /// ```
     pub fn new(inner: T) -> Self {
         Self {
             live: None,
@@ -81,7 +93,8 @@ impl<'a, T: Iterator<Item = &'a u8>> Iterator for ToHexIter<T> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
+        let (a, b) = self.inner.size_hint();
+        (a.saturating_mul(2), b.map(|b| b.saturating_mul(2)))
     }
 }
 
@@ -95,6 +108,7 @@ impl<'a, T: iter::ExactSizeIterator + Iterator<Item = &'a u8>> iter::ExactSizeIt
     }
 }
 
+/// A from-hex conversion trait.
 pub trait FromHex {
     /// Converts the value of `self`, interpreted as hexadecimal encoded data,
     /// into an owned value constructed from an iterator of bytes.
@@ -177,64 +191,89 @@ impl FromHex for str {
     /// }
     /// ```
     fn from_hex<T: FromIterator<u8>>(&self) -> Result<T, FromHexError> {
-        struct StrFromHex<'a> {
-            err: &'a mut Result<(), FromHexError>,
-            inner: &'a str,
-            iter: iter::Enumerate<::core::str::Bytes<'a>>,
-        }
-
-        impl<'a> Iterator for StrFromHex<'a> {
-            type Item = u8;
-
-            fn next(&mut self) -> Option<u8> {
-                let mut modulus = 0;
-                let mut buf = 0;
-                for (idx, byte) in &mut self.iter {
-                    buf <<= 4;
-
-                    match byte {
-                        b'A'..=b'F' => buf |= byte - b'A' + 10,
-                        b'a'..=b'f' => buf |= byte - b'a' + 10,
-                        b'0'..=b'9' => buf |= byte - b'0',
-                        b' '|b'\r'|b'\n'|b'\t' => {
-                            buf >>= 4;
-                            continue
-                        }
-                        _ => {
-                            let ch = self.inner[idx..].chars().next().unwrap();
-                            *self.err = Err(InvalidHexCharacter(ch, idx));
-                            return None;
-                        }
-                    }
-
-                    modulus += 1;
-                    if modulus == 2 {
-                        return Some(buf);
-                    }
-                }
-
-                if modulus != 0 {
-                    *self.err = Err(InvalidHexLength);
-                }
-
-                None
-            }
-        }
-
-        let mut err = Ok(());
-        let val: T = StrFromHex {
-            err: &mut err,
-            inner: self,
-            iter: self.bytes().enumerate(),
-        }.collect();
-
-        err.map(move |_| val)
+        FromHexIter::new(self).collect()
     }
 }
 
 impl<'a, T: ?Sized + FromHex> FromHex for &'a T {
     fn from_hex<U: FromIterator<u8>>(&self) -> Result<U, FromHexError> {
         (**self).from_hex()
+    }
+}
+
+/// An iterator decoding hex-encoded characters into bytes.
+pub struct FromHexIter<'a> {
+    err: bool,
+    inner: &'a str,
+    iter: iter::Enumerate<core::str::Bytes<'a>>,
+}
+
+impl<'a> FromHexIter<'a> {
+    /// Create new hex-decoding iterator.
+    /// # Example
+    ///
+    /// ```rust
+    /// fn main () {
+    ///     let s = "ff0102";
+    ///     let iter = rustc_hex::FromHexIter::new(s);
+    ///     println!("{:?}", iter.collect::<Vec<_>>());
+    /// }
+    /// ```
+    pub fn new(inner: &'a str) -> Self {
+        let iter = inner.bytes().enumerate();
+        Self {
+            err: false,
+            inner,
+            iter,
+        }
+    }
+}
+
+impl<'a> Iterator for FromHexIter<'a> {
+    type Item = Result<u8, FromHexError>;
+
+    fn next(&mut self) -> Option<Result<u8, FromHexError>> {
+        if self.err {
+            return None;
+        }
+
+        let mut modulus = 0;
+        let mut buf = 0;
+        for (idx, byte) in &mut self.iter {
+            buf <<= 4;
+
+            match byte {
+                b'A'..=b'F' => buf |= byte - b'A' + 10,
+                b'a'..=b'f' => buf |= byte - b'a' + 10,
+                b'0'..=b'9' => buf |= byte - b'0',
+                b' '|b'\r'|b'\n'|b'\t' => {
+                    buf >>= 4;
+                    continue
+                }
+                _ => {
+                    let ch = self.inner[idx..].chars().next().unwrap();
+                    self.err = true;
+                    return Some(Err(InvalidHexCharacter(ch, idx)));
+                }
+            }
+
+            modulus += 1;
+            if modulus == 2 {
+                return Some(Ok(buf));
+            }
+        }
+
+        if modulus != 0 {
+            self.err = true;
+            return Some(Err(InvalidHexLength));
+        }
+
+        None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let (a, b) = self.iter.size_hint();
+        (a / 2, b.map(|b| b / 2))
     }
 }
 
